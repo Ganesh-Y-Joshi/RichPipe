@@ -17,15 +17,17 @@ Constructor (__init__): Initializes the class with a Pandas DataFrame and a uniq
 Properties:
 want_outlier_indices (getter/setter): Controls whether to store outlier indices during removal.
 _id_ (property): Returns the unique identifier of the RichPipe object.
-Methods: These methods perform various operations on the DataFrame and return a new RichPipe object. Some notable methods include:
-Data selection: project, filter, limit
-Data manipulation: discard, map, flat_map, normalize
-Merge and join: join_with_smaller, left_join, right_join, inner_join, outer_join
-Grouping and aggregation: group_by, pivot, melt
-Element-wise operations: applymap
-Data transformation: sort, drop_duplicates, fill_na, rename_columns, one_hot_encode, label_encode, standard_scale, min_max_scale, winsorize, robust_scale
-Data analysis: describe, corr
-Input/output: to_csv, from_csv, to_dict, to_excel, export_to_json
-Utility methods: reset_index, add_column, drop_column_by_index, filter_rows_by_index, print_df
-Static methods: _df (constructs a RichPipe from a dictionary), _generate_suffixes (helps generate suffixes for join operations)
+
+Methods: These methods perform various operations on the DataFrame and return a new RichPipe object. Some notable methods include
+
+1) Data selection: project, filter, limit
+2) Data manipulation: discard, map, flat_map, normalize
+3) Merge and join: join_with_smaller, left_join, right_join, inner_join, outer_join
+4) Grouping and aggregation: group_by, pivot, melt
+5) Element-wise operations: applymap
+6) Data transformation: sort, drop_duplicates, fill_na, rename_columns, one_hot_encode, label_encode, standard_scale, min_max_scale, winsorize, robust_scale
+7) Data analysis: describe, corr
+8) Input/output: to_csv, from_csv, to_dict, to_excel, export_to_json
+9) Utility methods: reset_index, add_column, drop_column_by_index, filter_rows_by_index, print_df
+10) Static methods: _df (constructs a RichPipe from a dictionary), _generate_suffixes (helps generate suffixes for join operations)
 Docstrings: Most methods have docstrings explaining their purpose, arguments, and return values.
