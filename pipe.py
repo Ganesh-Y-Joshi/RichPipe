@@ -1,9 +1,14 @@
+import enum
 import json
+import logging
+import queue
+import time
 import uuid
 import warnings
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import threading
 from sklearn.impute import KNNImputer
 from sklearn.preprocessing import (LabelEncoder,
                                    RobustScaler,
@@ -31,7 +36,7 @@ def _generate_suffixes(merged_columns):
 
 
 class RichPipe:
-    def __init__(self, df: pd.DataFrame, _id: uuid.uuid4()):
+    def __init__(self, df: pd.DataFrame, _id=uuid.uuid4()):
         """
                 Initializes a RichPipe object with a Pandas DataFrame.
 
@@ -1264,3 +1269,133 @@ class RichPipe:
         """
         self.df = self.df.unstack(level=level, fill_value=fill_value)
         return self
+
+    def execute_task_async(self, executor, method_name, *args, **kwargs):
+        """
+        Executes a RichPipe method asynchronously using TaskExecutor.
+        Args:
+            executor (TaskExecutor): The TaskExecutor instance.
+            method_name (str): The name of the method to execute.
+            *args: Positional arguments for the method.
+            **kwargs: Keyword arguments for the method.
+        """
+        task_tag = str(uuid.uuid4())  # Unique identifier for the task
+        task = (self, method_name, args, kwargs)
+        executor.execute_async(task_tag, task)
+        return task_tag
+
+
+class State(enum.Enum):
+    SUCCESS = 0
+    FAILED = 1
+
+
+class TaskWorker(threading.Thread):
+    def __init__(self, task_queue: queue.Queue, result_queue: queue.Queue):
+        threading.Thread.__init__(self)
+        self.task_queue = task_queue
+        self.result_queue = result_queue
+
+    def run(self):
+        while True:
+            key, task = self.task_queue.get()
+            if key is None:
+                self.task_queue.task_done()
+                break
+            try:
+                if isinstance(task, tuple) and len(task) == 4:
+                    richpipe, method_name, args, kwargs = task
+                    method = getattr(richpipe, method_name)
+                    result = method(*args, **kwargs)
+                    state = (State.SUCCESS, result)
+                else:
+                    raise ValueError("Invalid task format")
+            except Exception as e:
+                state = (State.FAILED, str(e))
+                logging.error(str(e))
+            self.result_queue.put((key, state))
+            self.task_queue.task_done()
+
+
+class TaskExecutor:
+    def __init__(self, p):
+        self.wq = queue.Queue()
+        self.rq = queue.Queue()
+        self.commands = {}
+        self.event_buffer = {}
+        self.workers = [TaskWorker(self.wq, self.rq) for _ in range(p)]
+
+    def start(self):
+        for w in self.workers:
+            w.start()
+
+    def execute_async(self, tag, task):
+        self.wq.put_nowait((tag, task))
+
+    def change_state(self, key, state):
+        self.commands[key] = state
+        self.event_buffer[key] = state
+
+    def heartbeat(self):
+        while not self.rq.empty():
+            key, (state, result) = self.rq.get()
+            self.change_state(key, (state, result))
+
+    def end(self):
+        [self.wq.put((None, None)) for w in self.workers]
+        self.wq.join()
+
+
+# def main():
+#     logging.basicConfig(level=logging.INFO)
+#
+#     # Initialize the commands dictionary to track command states
+#     commands = {}
+#
+#     try:
+#         # Example commands
+#         command1_id = str(uuid.uuid4())
+#         command2_id = str(uuid.uuid4())
+#         command3_id = str(uuid.uuid4())
+#
+#         # Create RichPipe instances with sample data
+#         data1 = pd.DataFrame({"id": [1, 2, 3], "value1": [10, 20, 30]})
+#         data2 = pd.DataFrame({"id": [2, 3, 4], "value2": [200, 300, 400]})
+#
+#         pipe1 = RichPipe(data1)
+#         pipe2 = RichPipe(data2)
+#
+#         # Execute inner join
+#         joined_pipe = pipe1.inner_join("id", "id", pipe2)
+#         result = joined_pipe.df.to_dict()
+#
+#         # Track command states
+#         commands[command1_id] = (State.SUCCESS, pipe1)
+#         commands[command2_id] = (State.SUCCESS, pipe2)
+#         commands[command3_id] = (State.SUCCESS, joined_pipe)
+#
+#         # Log current state of commands
+#         logging.info(f"Current state of commands: {commands}")
+#
+#         # Validate results
+#         expected_result = {
+#             "id": {0: 2, 1: 3},
+#             "value1": {0: 20, 1: 30},
+#             "value2": {0: 200, 1: 300}
+#         }
+#         logging.info(result)
+#         assert result == expected_result, f"Result does not match expected: {result} != {expected_result}"
+#
+#         logging.info("All results validated successfully.")
+#
+#     except Exception as e:
+#         logging.error(f"An error occurred: {e}")
+#         raise
+#
+#     # Final state of commands
+#     logging.info(f"Final state of commands: {commands}")
+#
+#
+# if __name__ == "__main__":
+#     main()
+#
